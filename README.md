@@ -1,20 +1,46 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# PiMed-Scribe
 
-# Run and deploy your AI Studio app
+An AI-powered clinical transcription tool for emergency departments. PiMed-Scribe listens to clinical conversations, extracts structured EHR data, and maps findings to standard medical codes (ICD-10, SNOMED-CT, LOINC, CPT, MBS, RxNorm) — all in real time.
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/11d38657-b0c5-4fee-91e5-459f12a06316
+Supports typed transcripts, preset case scripts, and live voice recording with automatic audio transcription via Claude.
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js 18+
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```bash
+   npm install
+   ```
+
+2. Copy the example env file and add your Anthropic API key:
+   ```bash
+   cp .env.example .env
+   ```
+   Open `.env` and set:
+   ```
+   ANTHROPIC_API_KEY="sk-ant-..."
+   ```
+   Get your key at [console.anthropic.com](https://console.anthropic.com/).
+
+3. Start the app:
+   ```bash
+   npm run dev
+   ```
+
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## How It Works
+
+- **Text input:** Paste or type a clinical conversation and click Extract.
+- **Presets:** Choose from built-in ED case scripts to test the extraction pipeline.
+- **Voice recording:** Record a live clinical session; audio is sent to the backend and transcribed by Claude automatically.
+
+The Express backend sends audio or text to `claude-sonnet-4-20250514`, which returns a structured JSON record with confidence scores for every field.
+
+## Build for Production
+
+```bash
+npm run build
+npm start
+```
