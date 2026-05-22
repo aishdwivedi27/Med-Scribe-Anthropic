@@ -2,7 +2,7 @@
 
 An AI-powered clinical transcription tool for emergency departments. PiMed-Scribe listens to clinical conversations, extracts structured EHR data, and maps findings to standard medical codes (ICD-10, SNOMED-CT, LOINC, CPT, MBS, RxNorm) — all in real time.
 
-Supports typed transcripts, preset case scripts, and live voice recording with automatic audio transcription via Claude.
+Supports typed transcripts, preset case scripts, and live voice recording with browser-side speech transcription via the Web Speech API.
 
 ## Run Locally
 
@@ -34,9 +34,7 @@ Supports typed transcripts, preset case scripts, and live voice recording with a
 
 - **Text input:** Paste or type a clinical conversation and click Extract.
 - **Presets:** Choose from built-in ED case scripts to test the extraction pipeline.
-- **Voice recording:** Record a live clinical session; audio is sent to the backend and transcribed by Claude automatically.
-
-The Express backend sends audio or text to `claude-sonnet-4-20250514`, which returns a structured JSON record with confidence scores for every field.
+- **Voice recording:** Speech is transcribed live in the browser using the Web Speech API. The resulting text goes to the Express backend, which sends it to `claude-sonnet-4-20250514` for structured EHR extraction with confidence scores on every field.
 
 ## Build for Production
 
@@ -44,3 +42,9 @@ The Express backend sends audio or text to `claude-sonnet-4-20250514`, which ret
 npm run build
 npm start
 ```
+
+## Browser Support Caveat
+
+Voice recording uses the browser's built-in **Web Speech API**. This works in **Chrome and Edge** but is not supported in Firefox or Safari on most platforms.
+
+If you need cross-browser voice support, replace the `SpeechRecognition` block in `src/App.tsx` with a third-party speech-to-text service such as [OpenAI Whisper](https://platform.openai.com/docs/guides/speech-to-text) or [Deepgram](https://developers.deepgram.com/). The rest of the pipeline (text to Claude for EHR extraction) stays the same.

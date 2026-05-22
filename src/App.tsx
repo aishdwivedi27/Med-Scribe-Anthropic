@@ -86,9 +86,9 @@ export default function App() {
   const [bufferedAudioSlicesCount, setBufferedAudioSlicesCount] = useState<number>(0);
   const [bufferedChunksLog, setBufferedChunksLog] = useState<string[]>([]);
   
-  // MediaRecorder refs
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  // SpeechRecognition refs (replaces MediaRecorder/base64 approach)
+  const recognitionRef = useRef<any>(null);
+  const liveTranscriptRef = useRef<string>("");
   const recordingTimerRef = useRef<any>(null);
   const bufferTimerRef = useRef<any>(null);
 
@@ -289,79 +289,70 @@ Output a perfectly formatted clinical intake report in strict JSON format.
       return;
     }
 
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.warn("navigator.mediaDevices.getUserMedia is not available. Auto-switching to Voice Simulator.");
-        setUseVoiceSimulator(true);
-        startSimulatedVoiceRecording(true);
-        return;
-      }
+    // Use Web Speech API for live browser-side transcription
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioChunksRef.current = [];
-      setRecordingSeconds(0);
-      setBufferProgress(0);
-      setBufferedAudioSlicesCount(0);
-      setBufferedChunksLog(["Recording session initiated.", "Opening browser input channel..."]);
-
-      // Detect optimal browser mime type
-      let mimeType = "audio/webm";
-      if (!MediaRecorder.isTypeSupported("audio/webm")) {
-        mimeType = MediaRecorder.isTypeSupported("audio/ogg") ? "audio/ogg" : "audio/wav";
-      }
-
-      const recorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = recorder;
-
-      recorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((track) => track.stop());
-        setBufferedChunksLog((prev) => [...prev, "🎤 Recording stopped. Finalizing high-accuracy parser..."]);
-        
-        // Final transcribing
-        const finalBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        const base64 = await convertBlobToBase64(finalBlob);
-        runEhrExtraction(transcriptInput, base64);
-      };
-
-      recorder.start(1000); // deliver data chunks every second
-      setIsRecording(true);
-
-      // Start custom 1-second interval timers for buffering visual feedback
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
-      }, 1000);
-
-      // Buffering 15-20s visual clock count (we choose exactly 18 seconds as midpoint)
-      bufferTimerRef.current = setInterval(() => {
-        setBufferProgress((prev) => {
-          if (prev >= 100) {
-            // Buffer full! Simulate real-time streaming extraction trigger
-            setBufferedAudioSlicesCount((cnt) => cnt + 1);
-            setBufferedChunksLog((l) => [
-              ...l,
-              `⚡ Buffered 18-seconds audio chunk (${~~(Date.now() / 1000) % 100}s timer). Analyzing intermediate diagnostics...`,
-            ]);
-            
-            // Periodically request intermediate extract
-            triggerIntermediateBufferSlice();
-            return 0;
-          }
-          return prev + (100 / 18); // tick upward mapping to 18 seconds
-        });
-      }, 1000);
-
-    } catch (err: any) {
-      console.error(err);
-      console.warn("Microphone access blocked or failed. Switching to High-Fidelity Voice Simulator.");
+    if (!SpeechRecognition) {
+      console.warn("SpeechRecognition not supported. Switching to Voice Simulator.");
       setUseVoiceSimulator(true);
       startSimulatedVoiceRecording(true);
+      return;
     }
+
+    liveTranscriptRef.current = "";
+    setRecordingSeconds(0);
+    setBufferProgress(0);
+    setBufferedAudioSlicesCount(0);
+    setBufferedChunksLog(["Recording session initiated.", "Listening via browser speech engine..."]);
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    recognitionRef.current = recognition;
+
+    recognition.onresult = (event: any) => {
+      let fullTranscript = "";
+      for (let i = 0; i < event.results.length; i++) {
+        fullTranscript += event.results[i][0].transcript + " ";
+      }
+      liveTranscriptRef.current = fullTranscript.trim();
+      setTranscriptInput(liveTranscriptRef.current);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.warn("SpeechRecognition error:", event.error);
+      setBufferedChunksLog((prev) => [...prev, `⚠️ Speech recognition error: ${event.error}`]);
+    };
+
+    recognition.onend = () => {
+      // Auto-restart if still in recording state (browser cuts off after silence)
+      if (recognitionRef.current) {
+        try { recognition.start(); } catch (_) {}
+      }
+    };
+
+    recognition.start();
+    setIsRecording(true);
+
+    recordingTimerRef.current = setInterval(() => {
+      setRecordingSeconds((prev) => prev + 1);
+    }, 1000);
+
+    bufferTimerRef.current = setInterval(() => {
+      setBufferProgress((prev) => {
+        if (prev >= 100) {
+          setBufferedAudioSlicesCount((cnt) => cnt + 1);
+          setBufferedChunksLog((l) => [
+            ...l,
+            `⚡ ${~~(liveTranscriptRef.current.split(" ").length)} words captured so far. Extraction runs on stop.`,
+          ]);
+          return 0;
+        }
+        return prev + (100 / 18);
+      });
+    }, 1000);
   };
 
   const startSimulatedVoiceRecording = (showAutoNotice = false) => {
@@ -413,57 +404,21 @@ Output a perfectly formatted clinical intake report in strict JSON format.
       stopSimulatedVoiceRecording();
       return;
     }
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+    // Stop Web Speech API
+    if (recognitionRef.current) {
+      recognitionRef.current.onend = null; // prevent auto-restart
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
     }
     setIsRecording(false);
     clearInterval(recordingTimerRef.current);
     clearInterval(bufferTimerRef.current);
     setBufferProgress(0);
-  };
-
-  // Convert blob helper
-  const convertBlobToBase64 = (blob: Blob): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = (reader.result as string).split(",")[1];
-        resolve(base64String);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  };
-
-  // Simulation fallback to run on intermediate slices
-  const triggerIntermediateBufferSlice = async () => {
-    // Collect what has been recorded so far up to this point
-    if (audioChunksRef.current.length > 0) {
-      const sliceBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-      const base64 = await convertBlobToBase64(sliceBlob);
-      // Run concurrent background parse to let doctor see dynamic updates
-      try {
-        const response = await fetch("/api/transcribe", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            transcript: transcriptInput + "\n[INTERM AUDIO INJECTED]",
-            audio: base64,
-            mimeType: "audio/webm",
-          }),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.record) {
-            setRecord(data.record);
-            setBufferedChunksLog((prev) => [...prev, "✓ Buffer processed. Live visual record updated!"]);
-          }
-        }
-      } catch (e) {
-        console.warn("Intermediate chunk parsing failed (non-blocking)", e);
-      }
+    setBufferedChunksLog((prev) => [...prev, "🎤 Recording stopped. Running final EHR extraction..."]);
+    // Run final extraction on whatever was transcribed
+    const finalText = liveTranscriptRef.current || transcriptInput;
+    if (finalText) {
+      runEhrExtraction(finalText);
     }
   };
 

@@ -87,7 +87,7 @@ async function startServer() {
 
   // Core transcription and clinical extraction endpoint
   app.post("/api/transcribe", async (req, res) => {
-    const { transcript, audio, mimeType } = req.body;
+    const { transcript } = req.body;
 
     const currentApiKey = process.env.ANTHROPIC_API_KEY;
     if (!currentApiKey) {
@@ -97,53 +97,41 @@ async function startServer() {
       });
     }
 
+    if (!transcript || !transcript.trim()) {
+      return res.status(400).json({
+        error: "No transcript text was provided.",
+      });
+    }
+
     try {
       const client = getClient();
 
-      // Build the user message content array.
-      // Claude supports audio as base64 via the messages API.
-      const userContent: Anthropic.MessageParam["content"] = [];
-
-      if (audio) {
-        // Supported audio media types for Claude: audio/webm, audio/ogg, audio/wav, audio/mp4
-        const resolvedMimeType =
-          (mimeType as string) || "audio/webm";
-
-        userContent.push({
-          type: "document",
-          source: {
-            type: "base64",
-            media_type: resolvedMimeType as "audio/webm" | "audio/ogg" | "audio/wav" | "audio/mp4",
-            data: audio,
-          },
-        } as any); // cast needed because audio document type is newer in the SDK
-
-        userContent.push({
-          type: "text",
-          text: `Evaluate this recorded clinical session. Extract all clinical headings into the provided EHR structure. If some data is not conversed, keep it blank with confidence 'none'. Perform the raw transcription automatically.\nUser context:\n${transcript || ""}`,
-        });
-      } else if (transcript) {
-        userContent.push({
-          type: "text",
-          text: `Parse this emergency department conversation / clinical record:\n\n${transcript}`,
-        });
-      } else {
-        return res.status(400).json({
-          error: "No transcript text or recorded voice audio was provided.",
-        });
-      }
-
       console.log("Sending extraction request to claude-sonnet-4-20250514...");
 
-      const response = await client.messages.create({
+      const systemText = `${SYSTEM_PROMPT}\n\nYou MUST return raw, parseable JSON matching the following exact JSON schema structure:\n${JSON.stringify(JSON_SCHEMA, null, 2)}\n\nReturn ONLY valid JSON — no markdown fences, no preamble, no commentary.`;
+
+      const response = await (client.messages.create as any)({
         model: "claude-sonnet-4-20250514",
         max_tokens: 8192,
         temperature: 0.1,
-        system: `${SYSTEM_PROMPT}\n\nYou MUST return raw, parseable JSON matching the following exact JSON schema structure:\n${JSON.stringify(JSON_SCHEMA, null, 2)}\n\nReturn ONLY valid JSON — no markdown fences, no preamble, no commentary.`,
-        messages: [{ role: "user", content: userContent }],
+        // cache_control marks the system prompt as cacheable.
+        // Cached tokens are billed at 10% of normal input token cost and
+        // do NOT count toward the input token rate limit after the first call.
+        system: [
+          {
+            type: "text",
+            text: systemText,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [
+          {
+            role: "user",
+            content: `Parse this emergency department conversation / clinical record:\n\n${transcript}`,
+          },
+        ],
       });
 
-      // Extract text from the response
       const rawText = response.content
         .filter((block) => block.type === "text")
         .map((block) => (block as Anthropic.TextBlock).text)
@@ -169,6 +157,14 @@ async function startServer() {
           error: "Invalid Anthropic API Key",
           details:
             "The Anthropic API returned an authentication error. Check that ANTHROPIC_API_KEY in your .env file is correct and active.",
+        });
+      }
+
+      if (error?.status === 429) {
+        const retryAfter = error?.headers?.get?.("retry-after") || "60";
+        return res.status(429).json({
+          error: "Rate limit reached",
+          details: `Your API key has hit the 30,000 input tokens/minute limit. Wait ${retryAfter} seconds and try again. To avoid this, upgrade your Anthropic API plan at https://console.anthropic.com/`,
         });
       }
 
