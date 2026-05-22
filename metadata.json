@@ -1,0 +1,6 @@
+{
+  "name": "PiMed Scribe",
+  "description": "Comprehensive EHR prompt generator and real-time conversation transcription simulation hub supporting US, India, and Australia clinical formatting and interactive confidence highlighting.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
