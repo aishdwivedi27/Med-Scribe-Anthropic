@@ -106,12 +106,12 @@ async function startServer() {
     try {
       const client = getClient();
 
-      console.log("Sending extraction request to claude-sonnet-4-20250514...");
+      console.log("Sending extraction request to claude-sonnet-4-6...");
 
       const systemText = `${SYSTEM_PROMPT}\n\nYou MUST return raw, parseable JSON matching the following exact JSON schema structure:\n${JSON.stringify(JSON_SCHEMA, null, 2)}\n\nReturn ONLY valid JSON — no markdown fences, no preamble, no commentary.`;
 
       const response = await (client.messages.create as any)({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 8192,
         temperature: 0.1,
         // cache_control marks the system prompt as cacheable.
