@@ -441,7 +441,7 @@ Output a perfectly formatted clinical intake report in strict JSON format.
       const a = document.createElement("a");
       a.href = url;
       const name = record.patientHeader.fullName.value ? record.patientHeader.fullName.value.toLowerCase().replace(/\s+/g, "_") : "patient";
-      a.download = `pimed_fhir_${name}.json`;
+      a.download = `Med_fhir_${name}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -525,7 +525,7 @@ Output a perfectly formatted clinical intake report in strict JSON format.
             <div className="flex items-center gap-2">
               <h1 className={`text-xl font-bold tracking-tight transition-colors ${
                 theme === "light" ? "text-slate-900" : "text-white"
-              }`}>PiMed Scribe</h1>
+              }`}>Med Scribe</h1>
               <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded uppercase border transition-colors ${
                 theme === "light" 
                   ? "bg-emerald-50 border-emerald-200 text-emerald-700" 
@@ -2255,7 +2255,7 @@ Output a perfectly formatted clinical intake report in strict JSON format.
 
       {/* Unified footer */}
       <footer className="bg-slate-950 border-t border-slate-800 py-4 px-6 text-center text-slate-500 text-[11.5px]">
-        PiMed Scribe • Crafted with <strong>gemini-3.5-flash</strong> integration and strict clinical verification constraints.
+        Med Scribe • Crafted with <strong>gemini-3.5-flash</strong> integration and strict clinical verification constraints.
       </footer>
     </div>
   );

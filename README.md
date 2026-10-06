@@ -1,6 +1,6 @@
-# PiMed-Scribe
+# Med-Scribe
 
-An AI-powered clinical transcription tool for emergency departments. PiMed-Scribe listens to clinical conversations, extracts structured EHR data, and maps findings to standard medical codes (ICD-10, SNOMED-CT, LOINC, CPT, MBS, RxNorm) — all in real time.
+An AI-powered clinical transcription tool for emergency departments. Med-Scribe listens to clinical conversations, extracts structured EHR data, and maps findings to standard medical codes (ICD-10, SNOMED-CT, LOINC, CPT, MBS, RxNorm) — all in real time.
 
 Supports typed transcripts, preset case scripts, and live voice recording with browser-side speech transcription via the Web Speech API.
 

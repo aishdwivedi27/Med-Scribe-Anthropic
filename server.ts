@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  *
- * PiMed-Scribe — Anthropic Claude backend
+ * Med-Scribe — Anthropic Claude backend
  * Replaces the original Google Gemini implementation.
  */
 
